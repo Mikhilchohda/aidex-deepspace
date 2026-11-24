@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react'
 import { useQuery } from 'deepspace'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, MapPin, Search, ShieldCheck, SlidersHorizontal, Sparkles, Users } from 'lucide-react'
-import { ProgressBar } from '../../../components/aidex/PageKit'
-import { GlassCard } from '../../../components/aidex/GlassCard'
-import { StatusPill } from '../../../components/aidex/StatusPill'
-import { withShowcaseCampaigns } from '../../../data/showcase'
-import type { Campaign } from '../../../types/aidex'
-import { lamportsToSol } from '../../../types/aidex'
+import { ProgressBar } from '../../../../components/aidex/PageKit'
+import { GlassCard } from '../../../../components/aidex/GlassCard'
+import { StatusPill } from '../../../../components/aidex/StatusPill'
+import { withShowcaseCampaigns } from '../../../../data/showcase'
+import type { Campaign } from '../../../../types/aidex'
+import { lamportsToSol } from '../../../../types/aidex'
 
 const categories = ['All', 'Healthcare', 'Education', 'Water & sanitation', 'Food security', 'Climate']
 
