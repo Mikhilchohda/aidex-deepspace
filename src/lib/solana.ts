@@ -1,4 +1,5 @@
 import bs58 from 'bs58'
+import { Buffer } from 'buffer/'
 import {
   Connection,
   PublicKey,
@@ -115,7 +116,7 @@ async function assertEscrowReady(escrow: PublicKey): Promise<void> {
   if (!programAccount?.executable) {
     throw new Error('The AIDEX escrow program is not deployed on Solana Devnet yet. Fund the deployment wallet and deploy the program before accepting donations.')
   }
-  if (!escrowAccount) {
+  if (!escrowAccount?.owner.equals(program)) {
     throw new Error('This campaign escrow has not been initialized on Solana Devnet yet. An NGO administrator must activate it before donors can deposit.')
   }
 }
@@ -143,7 +144,7 @@ export function receiptPda(escrow: PublicKey, donor: PublicKey): PublicKey {
   )[0]
 }
 
-async function sendInstructions(provider: BrowserWallet, payer: PublicKey, instructions: TransactionInstruction[]) {
+async function sendInstructions(provider: BrowserWallet, payer: PublicKey, instructions: TransactionInstruction[], onSubmitted?: (signature: string) => void) {
   const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed')
   const transaction = new Transaction({ feePayer: payer, recentBlockhash: blockhash }).add(...instructions)
@@ -157,7 +158,9 @@ async function sendInstructions(provider: BrowserWallet, payer: PublicKey, instr
   } else {
     throw new Error('This wallet cannot sign Solana transactions')
   }
-  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+  onSubmitted?.(signature)
+  const confirmation = await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed')
+  if (confirmation.value.err) throw new Error('Solana rejected the transaction. Check its status in Explorer.')
   return signature
 }
 
@@ -223,11 +226,18 @@ export async function initializeCampaignEscrow(input: {
   }
 }
 
-export async function depositToEscrow(escrowAddress: string, amountLamports: bigint) {
+export async function depositToEscrow(
+  escrowAddress: string,
+  amountLamports: bigint,
+  linkedWallet: string,
+  onStage: (stage: 'wallet' | 'confirming', signature?: string) => void,
+) {
   if (amountLamports <= 0n) throw new Error('Donation amount must be greater than zero')
   const escrow = new PublicKey(escrowAddress)
   await assertEscrowReady(escrow)
+  onStage('wallet')
   const { provider, publicKey: donor } = await connectWallet()
+  if (donor.toBase58() !== linkedWallet) throw new Error('Switch your wallet to the account linked in AIDEX Settings.')
   const receipt = receiptPda(escrow, donor)
   const deposit = await instruction(
     'deposit',
@@ -239,7 +249,7 @@ export async function depositToEscrow(escrowAddress: string, amountLamports: big
     ],
     u64(amountLamports),
   )
-  const signature = await sendInstructions(provider, donor, [deposit])
+  const signature = await sendInstructions(provider, donor, [deposit], (submitted) => onStage('confirming', submitted))
   return { signature, walletAddress: donor.toBase58(), receipt: receipt.toBase58() }
 }
 

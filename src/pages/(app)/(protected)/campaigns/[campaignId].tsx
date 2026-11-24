@@ -44,34 +44,45 @@ export default function CampaignDetailPage() {
   const busy = !['idle', 'success', 'error'].includes(phase)
 
   async function fund() {
-    if (!campaign) return
+    if (!campaign || !persistedCampaign || busy || signature) return
     let receiptWindow: Window | null = null
     setPhase('checking')
     setMessage('')
     setSignature('')
+    let submittedSignature = ''
+    let confirmed = false
     try {
+      if (!profile?.walletAddress) throw new Error('Link your Devnet wallet in Settings before donating.')
       const lamports = solToLamports(amount)
       if (lamports <= 0n) throw new Error('Enter a donation amount greater than zero')
-      setPhase('wallet')
-      receiptWindow = window.open('', 'aidex-solana-receipt')
+      receiptWindow = window.open('', '_blank')
       if (receiptWindow) {
+        receiptWindow.opener = null
         receiptWindow.document.title = 'AIDEX · Waiting for Solana confirmation'
         receiptWindow.document.body.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;background:#07090e;color:#fff;font:16px system-ui"><p>Waiting for your confirmed Solana Devnet receipt…</p></div>'
       }
-      const transaction = await depositToEscrow(campaign.escrowPda, lamports)
-      setPhase('confirming')
+      const transaction = await depositToEscrow(campaign.escrowPda, lamports, profile.walletAddress, (stage, submitted) => {
+        setPhase(stage)
+        if (submitted) {
+          submittedSignature = submitted
+          setSignature(submitted)
+        }
+      })
+      confirmed = true
       setSignature(transaction.signature)
+      if (receiptWindow && !receiptWindow.closed) receiptWindow.location.replace(explorerTransaction(transaction.signature))
       setPhase('indexing')
       await callAidexAction('record-aidex-deposit', { campaignId, amountLamports: lamports.toString(), txSignature: transaction.signature })
       setPhase('success')
       setMessage('Donation locked in escrow. Your receipt is confirmed on Solana Devnet.')
-      const url = explorerTransaction(transaction.signature)
-      if (receiptWindow) receiptWindow.location.href = url
-      else window.open(url, '_blank', 'noopener,noreferrer')
     } catch (error) {
-      receiptWindow?.close()
+      if (!confirmed) receiptWindow?.close()
       setPhase('error')
-      setMessage(error instanceof Error ? error.message : 'The escrow deposit failed')
+      setMessage(confirmed
+        ? 'Solana confirmed your donation. DeepSpace could not record it yet. Keep the Explorer receipt.'
+        : submittedSignature
+          ? 'The transaction was submitted. Check its status in Solana Explorer before making another donation.'
+          : error instanceof Error ? error.message : 'The escrow deposit failed')
     }
   }
 
@@ -111,9 +122,9 @@ export default function CampaignDetailPage() {
             <label className="mt-6 block text-[10px] font-bold uppercase tracking-[.16em] text-white/40">Amount (Devnet SOL)</label>
             <input type="number" min="0.000001" step="0.1" className="aidex-input mt-2 text-lg" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={busy} />
             <div className="mt-2 grid grid-cols-4 gap-2">{['0.1', '0.5', '1', remainingSol].map((value, index) => <button key={`${value}-${index}`} type="button" onClick={() => setAmount(value)} disabled={busy} className="rounded-xl border border-white/10 bg-white/[.03] py-2 text-[11px] text-white/55 transition hover:border-white/25 hover:text-white">{index === 3 ? 'Max' : value}</button>)}</div>
-            <button type="button" className="aidex-primary mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50" disabled={busy || !campaign.escrowPda} onClick={fund}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : phase === 'success' ? <Check className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}{busy ? phaseCopy[phase as keyof typeof phaseCopy] : phase === 'success' ? 'Donation confirmed' : 'Donate to Escrow'}</button>
+            <button type="button" className="aidex-primary mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50" disabled={busy || !persistedCampaign || !campaign.escrowPda || !!signature} onClick={fund}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : phase === 'success' ? <Check className="h-4 w-4" /> : <WalletCards className="h-4 w-4" />}{busy ? phaseCopy[phase as keyof typeof phaseCopy] : phase === 'success' ? 'Donation confirmed' : 'Donate to Escrow'}</button>
           </> : <div className="mt-5 rounded-xl border border-white/10 bg-white/[.03] p-4 text-xs leading-5 text-white/45">Sign in with a donor profile to demonstrate the complete funding transaction.</div>}
-          {message && <div className={`mt-4 rounded-xl border p-3 text-xs leading-5 ${phase === 'error' ? 'border-red-400/20 bg-red-400/[.06] text-red-200' : 'border-emerald-300/20 bg-emerald-300/[.05] text-emerald-100'}`}>{message}{phase === 'error' && <button type="button" onClick={() => { setPhase('idle'); setMessage('') }} className="mt-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"><RotateCcw className="h-3 w-3" />Try again</button>}</div>}
+          {message && <div className={`mt-4 rounded-xl border p-3 text-xs leading-5 ${phase === 'error' ? 'border-red-400/20 bg-red-400/[.06] text-red-200' : 'border-emerald-300/20 bg-emerald-300/[.05] text-emerald-100'}`}>{message}{phase === 'error' && !signature && <button type="button" onClick={() => { setPhase('idle'); setMessage('') }} className="mt-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"><RotateCcw className="h-3 w-3" />Try again</button>}</div>}
           {signature && <a href={explorerTransaction(signature)} target="_blank" rel="noreferrer" className="mt-3 flex items-center justify-between rounded-xl border border-cyan-300/15 bg-cyan-300/[.045] p-3 text-xs text-cyan-100"><span>Open Solana receipt</span><ExternalLink className="h-3.5 w-3.5" /></a>}
           <p className="mt-4 flex gap-2 text-[11px] leading-5 text-white/35"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />Devnet SOL has no real-money value. Funds remain program-controlled and follow milestone or refund rules.</p>
         </GlassCard>
