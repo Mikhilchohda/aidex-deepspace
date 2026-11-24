@@ -15,7 +15,7 @@ export const AIDEX_PROGRAM_ID = import.meta.env.VITE_AIDEX_PROGRAM_ID || 'JAC2dc
 export interface BrowserWallet {
   publicKey?: PublicKey
   isConnected?: boolean
-  connect: () => Promise<{ publicKey?: PublicKey }>
+  connect: () => Promise<{ publicKey?: PublicKey } | void>
   disconnect?: () => Promise<void>
   signMessage?: (message: Uint8Array, encoding?: string) => Promise<{ signature: Uint8Array } | Uint8Array>
   signAndSendTransaction?: (transaction: Transaction) => Promise<{ signature: string } | string>
@@ -25,30 +25,55 @@ export interface BrowserWallet {
 declare global {
   interface Window {
     solana?: BrowserWallet & { isPhantom?: boolean }
+    phantom?: { solana?: BrowserWallet }
     solflare?: BrowserWallet
   }
 }
 
-function walletProvider(): BrowserWallet {
-  const provider = window.solana ?? window.solflare
+export type WalletChoice = 'phantom' | 'solflare'
+const walletPreferenceKey = 'aidex.wallet-provider'
+
+export function preferredWallet(): WalletChoice | undefined {
+  if (typeof window === 'undefined') return
+  const value = window.localStorage.getItem(walletPreferenceKey)
+  if (value === 'phantom' || value === 'solflare') return value
+}
+
+export function rememberWallet(choice: WalletChoice | 'auto') {
+  if (choice === 'auto') window.localStorage.removeItem(walletPreferenceKey)
+  else window.localStorage.setItem(walletPreferenceKey, choice)
+}
+
+function walletProvider(choice: WalletChoice | 'auto' | undefined = preferredWallet()): BrowserWallet {
+  const phantom = window.phantom?.solana ?? (window.solana?.isPhantom ? window.solana : undefined)
+  const solflare = window.solflare
+  if (choice === 'solflare') {
+    if (!solflare) throw new Error('Install or enable Solflare in this browser, then refresh AIDEX.')
+    return solflare
+  }
+  if (choice === 'phantom') {
+    if (!phantom) throw new Error('Install or enable Phantom in this browser, then refresh AIDEX.')
+    return phantom
+  }
+  const provider = phantom ?? solflare ?? window.solana
   if (!provider) throw new Error('Install Phantom or Solflare to use Solana Devnet')
   return provider
 }
 
-export async function connectWallet(): Promise<{ provider: BrowserWallet; publicKey: PublicKey }> {
-  const provider = walletProvider()
+export async function connectWallet(choice?: WalletChoice | 'auto'): Promise<{ provider: BrowserWallet; publicKey: PublicKey }> {
+  const provider = walletProvider(choice)
   const result = await provider.connect()
-  const publicKey = result.publicKey ?? provider.publicKey
+  const publicKey = result?.publicKey ?? provider.publicKey
   if (!publicKey) throw new Error('The wallet did not return a public key')
   return { provider, publicKey: new PublicKey(publicKey.toString()) }
 }
 
-export async function signWalletLink(userId: string): Promise<{
+export async function signWalletLink(userId: string, choice?: WalletChoice | 'auto'): Promise<{
   walletAddress: string
   signedAt: string
   signature: string
 }> {
-  const { provider, publicKey } = await connectWallet()
+  const { provider, publicKey } = await connectWallet(choice)
   if (!provider.signMessage) throw new Error('This wallet does not support message signing')
   const walletAddress = publicKey.toBase58()
   const signedAt = new Date().toISOString()

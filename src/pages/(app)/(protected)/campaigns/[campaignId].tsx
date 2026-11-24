@@ -16,7 +16,7 @@ type FundingPhase = 'idle' | 'checking' | 'wallet' | 'confirming' | 'indexing' |
 
 const phaseCopy = {
   checking: 'Checking Devnet escrow…',
-  wallet: 'Approve in Phantom…',
+  wallet: 'Approve in your wallet…',
   confirming: 'Confirming on Devnet…',
   indexing: 'Indexing receipt…',
 } as const
