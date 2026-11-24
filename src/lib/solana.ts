@@ -105,6 +105,21 @@ function programId(): PublicKey {
   return new PublicKey(AIDEX_PROGRAM_ID)
 }
 
+async function assertEscrowReady(escrow: PublicKey): Promise<void> {
+  const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
+  const program = programId()
+  const [programAccount, escrowAccount] = await Promise.all([
+    connection.getAccountInfo(program, 'confirmed'),
+    connection.getAccountInfo(escrow, 'confirmed'),
+  ])
+  if (!programAccount?.executable) {
+    throw new Error('The AIDEX escrow program is not deployed on Solana Devnet yet. Fund the deployment wallet and deploy the program before accepting donations.')
+  }
+  if (!escrowAccount) {
+    throw new Error('This campaign escrow has not been initialized on Solana Devnet yet. An NGO administrator must activate it before donors can deposit.')
+  }
+}
+
 export async function campaignSeed(campaignId: string): Promise<Uint8Array> {
   return sha256(new TextEncoder().encode(campaignId))
 }
@@ -209,8 +224,10 @@ export async function initializeCampaignEscrow(input: {
 }
 
 export async function depositToEscrow(escrowAddress: string, amountLamports: bigint) {
-  const { provider, publicKey: donor } = await connectWallet()
+  if (amountLamports <= 0n) throw new Error('Donation amount must be greater than zero')
   const escrow = new PublicKey(escrowAddress)
+  await assertEscrowReady(escrow)
+  const { provider, publicKey: donor } = await connectWallet()
   const receipt = receiptPda(escrow, donor)
   const deposit = await instruction(
     'deposit',

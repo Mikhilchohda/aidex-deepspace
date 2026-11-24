@@ -5,13 +5,16 @@ import { GlassCard } from '../../../components/aidex/GlassCard'
 import { EmptyState, Metric, PageHeader, ProgressBar } from '../../../components/aidex/PageKit'
 import { StatusPill } from '../../../components/aidex/StatusPill'
 import { useAidexProfile } from '../../../contexts/AidexProfileContext'
+import { withShowcaseCampaigns, withShowcaseMilestones } from '../../../data/showcase'
 import type { Campaign, LedgerEvent, Milestone } from '../../../types/aidex'
 import { lamportsToSol } from '../../../types/aidex'
 
 export default function DashboardPage() {
   const { profile } = useAidexProfile()
-  const { records: campaigns } = useQuery<Campaign>('campaigns', { limit: 50 })
-  const { records: milestones } = useQuery<Milestone>('milestones', { limit: 100 })
+  const { records: queriedCampaigns } = useQuery<Campaign>('campaigns', { limit: 50 })
+  const { records: queriedMilestones } = useQuery<Milestone>('milestones', { limit: 100 })
+  const campaigns = withShowcaseCampaigns(queriedCampaigns)
+  const milestones = withShowcaseMilestones(queriedMilestones)
   const { records: ledger } = useQuery<LedgerEvent>('ledger_events', { limit: 10 })
   const totalLocked = campaigns.reduce((sum, row) => sum + BigInt(row.data.fundedLamports || 0) - BigInt(row.data.releasedLamports || 0) - BigInt(row.data.refundedLamports || 0), 0n)
   const reviewCount = milestones.filter(row => row.data.status === 'under_review').length
