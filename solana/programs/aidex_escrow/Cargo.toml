@@ -1,0 +1,20 @@
+[package]
+name = "aidex-escrow"
+version = "0.1.0"
+description = "Trust-minimized milestone escrow for AIDEX"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "aidex_escrow"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "1.2.2", features = ["init-if-needed"] }

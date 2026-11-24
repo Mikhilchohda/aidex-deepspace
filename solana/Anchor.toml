@@ -1,0 +1,23 @@
+[toolchain]
+anchor_version = "1.2.2"
+solana_version = "4.1.2"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+aidex_escrow = "JAC2dcscjDK6AhCrubUhve9w7ttiUg9zaBzpzFjMHWLh"
+
+[programs.devnet]
+aidex_escrow = "JAC2dcscjDK6AhCrubUhve9w7ttiUg9zaBzpzFjMHWLh"
+
+[provider]
+cluster = "Devnet"
+wallet = "./.keys/deployer.json"
+
+[workspace]
+members = ["programs/aidex_escrow"]
+
+[scripts]
+test = "cargo test --workspace"

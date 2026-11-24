@@ -1,0 +1,26 @@
+node_modules
+dist
+.wrangler
+.wrangler.deepspace.*.toml
+.dev.vars
+.dev.vars.*
+.deepspace
+.worker-bundle.js
+*.tgz
+test-results/
+playwright-report/
+src/router.ts
+src/modals.tsx
+.claude/launch.json
+.claude/worktrees
+.codex/
+
+# Solana / Anchor build output and local deployment identities
+target/
+.anchor/
+test-ledger/
+solana/.keys/
+solana/**/target/
+
+# Local-only blockchain configuration
+.env.local
